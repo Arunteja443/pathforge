@@ -132,7 +132,18 @@ elif st.session_state.current_step == 'roadmap':
     
     # Display Research Insights
     with st.expander("📚 Research Insights", expanded=True):
-        st.write(roadmap.get('research_insights', {}))
+        insights = roadmap.get('research_insights', {})
+        if insights:
+            st.write("**Key Concepts:**")
+            for concept in insights.get('key_concepts', []):
+                st.write(f"- {concept}")
+            
+            st.write("\n**Prerequisites:**")
+            for prereq in insights.get('prerequisites', []):
+                st.write(f"- {prereq}")
+            
+            st.write(f"\n**Learning Approach:** {insights.get('learning_approach', '')}")
+            st.write(f"**Estimated Duration:** {insights.get('estimated_duration', '')}")
     
     # Display Resources
     with st.expander("🔍 Recommended Resources", expanded=True):
@@ -141,30 +152,35 @@ elif st.session_state.current_step == 'roadmap':
         if 'courses' in resources:
             st.subheader("Courses")
             for course in resources['courses']:
-                st.write(f"- [{course['title']}]({course['url']}) - {course['duration']}")
+                st.write(f"- [{course['title']}]({course['url']}) - {course['duration']} ({course['platform']})")
         
         if 'tutorials' in resources:
             st.subheader("Tutorials")
             for tutorial in resources['tutorials']:
-                st.write(f"- [{tutorial['title']}]({tutorial['url']})")
+                st.write(f"- [{tutorial['title']}]({tutorial['url']}) ({tutorial['format']})")
+        
+        if 'documentation' in resources:
+            st.subheader("Documentation")
+            for doc in resources['documentation']:
+                st.write(f"- [{doc['title']}]({doc['url']}) ({doc['type']})")
     
     # Display Roadmap Milestones
     st.subheader("🎯 Learning Milestones")
-    for node in roadmap.get('nodes', []):
-        with st.expander(f"📍 {node['data']['title']}", expanded=False):
-            st.write(f"**Description:** {node['data']['description']}")
-            st.write(f"**Duration:** {node['data']['duration']}")
-            st.write(f"**Complexity:** {node['data']['complexity']}")
+    for index, milestone in enumerate(roadmap.get('milestones', []), 1):
+        with st.expander(f"📍 Milestone {index}: {milestone['title']}", expanded=False):
+            st.write(f"**Description:** {milestone['description']}")
+            st.write(f"**Duration:** {milestone['duration']}")
+            st.write(f"**Complexity:** {milestone['complexity']}")
             
-            if node['data'].get('exercises'):
+            if milestone.get('exercises'):
                 st.write("\n**Exercises:**")
-                for exercise in node['data']['exercises']:
-                    st.write(f"- {exercise['title']}")
+                for exercise in milestone['exercises']:
+                    st.write(f"- **{exercise['title']}**: {exercise['description']}")
             
-            if node['data'].get('checkpoints'):
+            if milestone.get('checkpoints'):
                 st.write("\n**Checkpoints:**")
-                for checkpoint in node['data']['checkpoints']:
-                    st.checkbox(checkpoint, key=f"check_{node['id']}_{checkpoint}")
+                for checkpoint in milestone['checkpoints']:
+                    st.checkbox(checkpoint, key=f"check_{index}_{checkpoint}")
     
     # Reset Button
     if st.button("Start Over"):

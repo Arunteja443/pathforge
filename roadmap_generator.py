@@ -56,19 +56,59 @@ class RoadmapGenerator:
         Create a complete roadmap including:
         1. Research insights about the learning path
         2. Curated resources (courses, tutorials, documentation)
-        3. Detailed milestones with:
-           - Title and description
-           - Duration estimates
-           - Complexity level
-           - Required exercises
-           - Checkpoints for progress tracking
+        3. Milestones with clear progression
         
-        Format the response as a JSON object with:
-        - research_insights: object with key findings
-        - resources: categorized learning materials
-        - nodes: array of learning milestones
-        - edges: array of dependencies between milestones
+        Return a JSON object with this exact structure:
+        {{
+          "research_insights": {{
+            "key_concepts": [string],
+            "prerequisites": [string],
+            "learning_approach": string,
+            "estimated_duration": string
+          }},
+          "resources": {{
+            "courses": [
+              {{
+                "title": string,
+                "platform": string,
+                "url": string,
+                "duration": string,
+                "level": string
+              }}
+            ],
+            "tutorials": [
+              {{
+                "title": string,
+                "url": string,
+                "format": string
+              }}
+            ],
+            "documentation": [
+              {{
+                "title": string,
+                "url": string,
+                "type": string
+              }}
+            ]
+          }},
+          "milestones": [
+            {{
+              "title": string,
+              "description": string,
+              "duration": string,
+              "complexity": string,
+              "exercises": [
+                {{
+                  "title": string,
+                  "description": string
+                }}
+              ],
+              "checkpoints": [string]
+            }}
+          ]
+        }}
         
+        Ensure all milestones have the exact same structure as specified above.
         Return only the JSON object, no additional text.
         """
 
