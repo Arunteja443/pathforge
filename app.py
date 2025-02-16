@@ -16,6 +16,16 @@ st.set_page_config(
     layout="wide"
 )
 
+# Helper function to safely get nested dictionary values
+def safe_get(dictionary, *keys, default=None):
+    try:
+        value = dictionary
+        for key in keys:
+            value = value[key]
+        return value
+    except (KeyError, TypeError, IndexError):
+        return default
+
 # Initialize session state
 if 'current_step' not in st.session_state:
     st.session_state.current_step = 'goal_selection'
@@ -70,34 +80,48 @@ elif st.session_state.current_step == 'onboarding':
     questions = st.session_state.onboarding_questions
     responses = {}
     
-    for field in questions['fields']:
-        if field['type'] == 'select':
-            responses[field['id']] = st.selectbox(
-                field['label'],
-                options=field['options'],
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-        elif field['type'] == 'multiselect':
-            responses[field['id']] = st.multiselect(
-                field['label'],
-                options=field['options'],
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-        elif field['type'] == 'number':
-            responses[field['id']] = st.number_input(
-                field['label'],
-                min_value=field.get('validation', {}).get('min', 0),
-                max_value=field.get('validation', {}).get('max', 100),
-                help=field.get('helpText', ''),
-                key=field['id']
+    fields = safe_get(questions, 'fields', default=[])
+    for field in fields:
+        field_id = safe_get(field, 'id')
+        if not field_id:
+            continue
+
+        field_type = safe_get(field, 'type', default='text')
+        field_label = safe_get(field, 'label', default='Question')
+        field_help = safe_get(field, 'helpText', default='')
+        
+        if field_type == 'select':
+            options = safe_get(field, 'options', default=[])
+            if options:
+                responses[field_id] = st.selectbox(
+                    field_label,
+                    options=options,
+                    help=field_help,
+                    key=field_id
+                )
+        elif field_type == 'multiselect':
+            options = safe_get(field, 'options', default=[])
+            if options:
+                responses[field_id] = st.multiselect(
+                    field_label,
+                    options=options,
+                    help=field_help,
+                    key=field_id
+                )
+        elif field_type == 'number':
+            validation = safe_get(field, 'validation', default={})
+            responses[field_id] = st.number_input(
+                field_label,
+                min_value=safe_get(validation, 'min', default=0),
+                max_value=safe_get(validation, 'max', default=100),
+                help=field_help,
+                key=field_id
             )
         else:  # text or textarea
-            responses[field['id']] = st.text_input(
-                field['label'],
-                help=field.get('helpText', ''),
-                key=field['id']
+            responses[field_id] = st.text_input(
+                field_label,
+                help=field_help,
+                key=field_id
             )
     
     col1, col2 = st.columns(2)
@@ -132,54 +156,89 @@ elif st.session_state.current_step == 'roadmap':
     
     # Display Research Insights
     with st.expander("📚 Research Insights", expanded=True):
-        insights = roadmap.get('research_insights', {})
+        insights = safe_get(roadmap, 'research_insights', default={})
         if insights:
-            st.write("**Key Concepts:**")
-            for concept in insights.get('key_concepts', []):
-                st.write(f"- {concept}")
+            key_concepts = safe_get(insights, 'key_concepts', default=[])
+            if key_concepts:
+                st.write("**Key Concepts:**")
+                for concept in key_concepts:
+                    st.write(f"- {concept}")
             
-            st.write("\n**Prerequisites:**")
-            for prereq in insights.get('prerequisites', []):
-                st.write(f"- {prereq}")
+            prerequisites = safe_get(insights, 'prerequisites', default=[])
+            if prerequisites:
+                st.write("\n**Prerequisites:**")
+                for prereq in prerequisites:
+                    st.write(f"- {prereq}")
             
-            st.write(f"\n**Learning Approach:** {insights.get('learning_approach', '')}")
-            st.write(f"**Estimated Duration:** {insights.get('estimated_duration', '')}")
+            learning_approach = safe_get(insights, 'learning_approach')
+            if learning_approach:
+                st.write(f"\n**Learning Approach:** {learning_approach}")
+            
+            estimated_duration = safe_get(insights, 'estimated_duration')
+            if estimated_duration:
+                st.write(f"**Estimated Duration:** {estimated_duration}")
     
     # Display Resources
     with st.expander("🔍 Recommended Resources", expanded=True):
-        resources = roadmap.get('resources', {})
+        resources = safe_get(roadmap, 'resources', default={})
         
-        if 'courses' in resources:
+        courses = safe_get(resources, 'courses', default=[])
+        if courses:
             st.subheader("Courses")
-            for course in resources['courses']:
-                st.write(f"- [{course['title']}]({course['url']}) - {course['duration']} ({course['platform']})")
+            for course in courses:
+                title = safe_get(course, 'title', default='Course')
+                url = safe_get(course, 'url', default='#')
+                duration = safe_get(course, 'duration', default='')
+                platform = safe_get(course, 'platform', default='')
+                st.write(f"- [{title}]({url}) - {duration} ({platform})")
         
-        if 'tutorials' in resources:
+        tutorials = safe_get(resources, 'tutorials', default=[])
+        if tutorials:
             st.subheader("Tutorials")
-            for tutorial in resources['tutorials']:
-                st.write(f"- [{tutorial['title']}]({tutorial['url']}) ({tutorial['format']})")
+            for tutorial in tutorials:
+                title = safe_get(tutorial, 'title', default='Tutorial')
+                url = safe_get(tutorial, 'url', default='#')
+                format_type = safe_get(tutorial, 'format', default='')
+                st.write(f"- [{title}]({url}) ({format_type})")
         
-        if 'documentation' in resources:
+        docs = safe_get(resources, 'documentation', default=[])
+        if docs:
             st.subheader("Documentation")
-            for doc in resources['documentation']:
-                st.write(f"- [{doc['title']}]({doc['url']}) ({doc['type']})")
+            for doc in docs:
+                title = safe_get(doc, 'title', default='Documentation')
+                url = safe_get(doc, 'url', default='#')
+                doc_type = safe_get(doc, 'type', default='')
+                st.write(f"- [{title}]({url}) ({doc_type})")
     
     # Display Roadmap Milestones
     st.subheader("🎯 Learning Milestones")
-    for index, milestone in enumerate(roadmap.get('milestones', []), 1):
-        with st.expander(f"📍 Milestone {index}: {milestone['title']}", expanded=False):
-            st.write(f"**Description:** {milestone['description']}")
-            st.write(f"**Duration:** {milestone['duration']}")
-            st.write(f"**Complexity:** {milestone['complexity']}")
+    milestones = safe_get(roadmap, 'milestones', default=[])
+    for index, milestone in enumerate(milestones, 1):
+        title = safe_get(milestone, 'title', default=f'Milestone {index}')
+        with st.expander(f"📍 Milestone {index}: {title}", expanded=False):
+            description = safe_get(milestone, 'description', default='No description available')
+            st.write(f"**Description:** {description}")
             
-            if milestone.get('exercises'):
+            duration = safe_get(milestone, 'duration')
+            if duration:
+                st.write(f"**Duration:** {duration}")
+            
+            complexity = safe_get(milestone, 'complexity')
+            if complexity:
+                st.write(f"**Complexity:** {complexity}")
+            
+            exercises = safe_get(milestone, 'exercises', default=[])
+            if exercises:
                 st.write("\n**Exercises:**")
-                for exercise in milestone['exercises']:
-                    st.write(f"- **{exercise['title']}**: {exercise['description']}")
+                for exercise in exercises:
+                    ex_title = safe_get(exercise, 'title', default='Exercise')
+                    ex_desc = safe_get(exercise, 'description', default='')
+                    st.write(f"- **{ex_title}**: {ex_desc}")
             
-            if milestone.get('checkpoints'):
+            checkpoints = safe_get(milestone, 'checkpoints', default=[])
+            if checkpoints:
                 st.write("\n**Checkpoints:**")
-                for checkpoint in milestone['checkpoints']:
+                for checkpoint in checkpoints:
                     st.checkbox(checkpoint, key=f"check_{index}_{checkpoint}")
     
     # Reset Button
