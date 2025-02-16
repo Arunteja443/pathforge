@@ -1,18 +1,13 @@
+# app.py
 import streamlit as st
 import json
 import os
-from roadmap_crew import RoadmapCrew
-from dotenv import load_dotenv
+from roadmap_generator import RoadmapGenerator
 
-# Load environment variables
-load_dotenv()
-
-# Initialize CrewAI system
+# Initialize OpenAI client
 @st.cache_resource
-def init_crew():
-    crew = RoadmapCrew(openai_api_key=os.getenv("OPENAI_API_KEY"))
-    crew.create_agents()
-    return crew
+def init_generator():
+    return RoadmapGenerator(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Page configuration
 st.set_page_config(
@@ -31,8 +26,8 @@ if 'onboarding_questions' not in st.session_state:
 if 'roadmap' not in st.session_state:
     st.session_state.roadmap = None
 
-# Initialize CrewAI
-crew = init_crew()
+# Initialize generator
+generator = init_generator()
 
 # Title
 st.title("🎯 Learning Roadmap Generator")
@@ -41,26 +36,32 @@ st.title("🎯 Learning Roadmap Generator")
 if st.session_state.current_step == 'goal_selection':
     st.header("What would you like to learn?")
     
-    goal_type = st.selectbox(
-        "Select your learning goal",
-        options=[
-            "python_programming",
-            "web_development",
-            "data_science",
-            "machine_learning",
-            "business_development",
-            "product_management"
-        ]
-    )
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        goal_type = st.selectbox(
+            "Select your learning goal",
+            options=[
+                "python_programming",
+                "web_development",
+                "data_science",
+                "machine_learning",
+                "business_development",
+                "product_management"
+            ]
+        )
     
     if st.button("Next", type="primary"):
         with st.spinner("Generating questions..."):
-            # Get onboarding questions
-            questions = crew.get_onboarding_questions(goal_type)
-            st.session_state.onboarding_questions = questions
-            st.session_state.user_responses['goal_type'] = goal_type
-            st.session_state.current_step = 'onboarding'
-            st.rerun()
+            try:
+                # Get onboarding questions
+                questions = generator.get_onboarding_questions(goal_type)
+                st.session_state.onboarding_questions = questions
+                st.session_state.user_responses['goal_type'] = goal_type
+                st.session_state.current_step = 'onboarding'
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error generating questions: {str(e)}")
 
 # Onboarding Questions Step
 elif st.session_state.current_step == 'onboarding':
@@ -108,17 +109,20 @@ elif st.session_state.current_step == 'onboarding':
     with col2:
         if st.button("Generate Roadmap", type="primary"):
             with st.spinner("Generating your personalized roadmap..."):
-                # Update user responses
-                st.session_state.user_responses.update(responses)
-                
-                # Generate roadmap
-                roadmap = crew.generate_roadmap(
-                    st.session_state.user_responses['goal_type'],
-                    st.session_state.user_responses
-                )
-                st.session_state.roadmap = roadmap
-                st.session_state.current_step = 'roadmap'
-                st.rerun()
+                try:
+                    # Update user responses
+                    st.session_state.user_responses.update(responses)
+                    
+                    # Generate roadmap
+                    roadmap = generator.generate_roadmap(
+                        st.session_state.user_responses['goal_type'],
+                        st.session_state.user_responses
+                    )
+                    st.session_state.roadmap = roadmap
+                    st.session_state.current_step = 'roadmap'
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error generating roadmap: {str(e)}")
 
 # Roadmap Display Step
 elif st.session_state.current_step == 'roadmap':
@@ -172,4 +176,4 @@ elif st.session_state.current_step == 'roadmap':
 
 # Footer
 st.markdown("---")
-st.markdown("Made with ❤️ using CrewAI")
+st.markdown("Made with ❤️ using OpenAI and Streamlit")
