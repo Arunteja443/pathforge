@@ -1,175 +1,210 @@
-import streamlit as st
+from crewai import Agent, Task, Crew, Process
+from textwrap import dedent
 import json
-import os
-from roadmap_crew import RoadmapCrew
-from dotenv import load_dotenv
+from typing import Dict, List, Optional
 
-# Load environment variables
-load_dotenv()
+class RoadmapCrew:
+    def __init__(self, openai_api_key: str):
+        self.openai_api_key = openai_api_key
+        
+    def create_agents(self):
+        # Form Designer Agent
+        self.form_designer = Agent(
+            role='Form Design Specialist',
+            goal='Create comprehensive and user-friendly onboarding questionnaires',
+            backstory=dedent("""
+                You are an expert in designing intuitive and effective questionnaires.
+                You understand how to gather relevant information while keeping forms
+                concise and user-friendly.
+            """),
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Research Specialist Agent
+        self.researcher = Agent(
+            role='Research Specialist',
+            goal='Analyze learning paths and gather comprehensive information',
+            backstory=dedent("""
+                You are an expert in analyzing learning requirements and creating
+                structured learning paths. You understand various learning domains
+                and can identify key components for success.
+            """),
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Resource Curator Agent
+        self.curator = Agent(
+            role='Resource Curator',
+            goal='Curate high-quality learning resources and materials',
+            backstory=dedent("""
+                You are an expert in finding and organizing educational resources.
+                You know how to match resources to different learning styles and
+                skill levels.
+            """),
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Roadmap Designer Agent
+        self.roadmap_designer = Agent(
+            role='Roadmap Designer',
+            goal='Create personalized learning journeys with clear milestones',
+            backstory=dedent("""
+                You are an expert in creating structured learning paths with clear
+                progression. You know how to break down complex goals into
+                manageable steps.
+            """),
+            verbose=True,
+            allow_delegation=False
+        )
 
-# Initialize CrewAI system
-@st.cache_resource
-def init_crew():
-    crew = RoadmapCrew(openai_api_key=os.getenv("OPENAI_API_KEY"))
-    crew.create_agents()
-    return crew
-
-# Page configuration
-st.set_page_config(
-    page_title="Learning Roadmap Generator",
-    page_icon="🎯",
-    layout="wide"
-)
-
-# Initialize session state
-if 'current_step' not in st.session_state:
-    st.session_state.current_step = 'goal_selection'
-if 'user_responses' not in st.session_state:
-    st.session_state.user_responses = {}
-if 'onboarding_questions' not in st.session_state:
-    st.session_state.onboarding_questions = None
-if 'roadmap' not in st.session_state:
-    st.session_state.roadmap = None
-
-# Initialize CrewAI
-crew = init_crew()
-
-# Title
-st.title("🎯 Learning Roadmap Generator")
-
-# Goal Selection Step
-if st.session_state.current_step == 'goal_selection':
-    st.header("What would you like to learn?")
-    
-    goal_type = st.selectbox(
-        "Select your learning goal",
-        options=[
-            "python_programming",
-            "web_development",
-            "data_science",
-            "machine_learning",
-            "business_development",
-            "product_management"
-        ]
-    )
-    
-    if st.button("Next", type="primary"):
-        with st.spinner("Generating questions..."):
-            # Get onboarding questions
-            questions = crew.get_onboarding_questions(goal_type)
-            st.session_state.onboarding_questions = questions
-            st.session_state.user_responses['goal_type'] = goal_type
-            st.session_state.current_step = 'onboarding'
-            st.rerun()
-
-# Onboarding Questions Step
-elif st.session_state.current_step == 'onboarding':
-    st.header("Let's customize your learning journey")
-    
-    questions = st.session_state.onboarding_questions
-    responses = {}
-    
-    for field in questions['fields']:
-        if field['type'] == 'select':
-            responses[field['id']] = st.selectbox(
-                field['label'],
-                options=field['options'],
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-        elif field['type'] == 'multiselect':
-            responses[field['id']] = st.multiselect(
-                field['label'],
-                options=field['options'],
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-        elif field['type'] == 'number':
-            responses[field['id']] = st.number_input(
-                field['label'],
-                min_value=field.get('validation', {}).get('min', 0),
-                max_value=field.get('validation', {}).get('max', 100),
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-        else:  # text or textarea
-            responses[field['id']] = st.text_input(
-                field['label'],
-                help=field.get('helpText', ''),
-                key=field['id']
-            )
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Back"):
-            st.session_state.current_step = 'goal_selection'
-            st.rerun()
-    
-    with col2:
-        if st.button("Generate Roadmap", type="primary"):
-            with st.spinner("Generating your personalized roadmap..."):
-                # Update user responses
-                st.session_state.user_responses.update(responses)
+    def get_onboarding_questions(self, goal_type: str) -> Dict:
+        """Generate onboarding questions based on goal type."""
+        
+        question_generation_task = Task(
+            description=dedent(f"""
+                Create a comprehensive set of onboarding questions for a {goal_type} goal.
                 
-                # Generate roadmap
-                roadmap = crew.generate_roadmap(
-                    st.session_state.user_responses['goal_type'],
-                    st.session_state.user_responses
-                )
-                st.session_state.roadmap = roadmap
-                st.session_state.current_step = 'roadmap'
-                st.rerun()
+                Include questions about:
+                1. Current experience and background
+                2. Learning preferences and style
+                3. Time availability and constraints
+                4. Specific goals and objectives
+                5. Resource preferences and limitations
+                
+                Format the response as a JSON object with fields array where each field has:
+                - id: string
+                - label: string
+                - type: "text" | "number" | "select" | "multiselect"
+                - required: boolean
+                - category: string
+                - options: string[] (for select/multiselect)
+                - validation: object (if needed)
+                - helpText: string
+                - order: number
+                
+                Ensure questions are relevant to {goal_type} specifically.
+            """),
+            agent=self.form_designer
+        )
 
-# Roadmap Display Step
-elif st.session_state.current_step == 'roadmap':
-    st.header("Your Personalized Learning Roadmap")
-    
-    roadmap = st.session_state.roadmap
-    
-    # Display Research Insights
-    with st.expander("📚 Research Insights", expanded=True):
-        st.write(roadmap.get('research_insights', {}))
-    
-    # Display Resources
-    with st.expander("🔍 Recommended Resources", expanded=True):
-        resources = roadmap.get('resources', {})
-        
-        if 'courses' in resources:
-            st.subheader("Courses")
-            for course in resources['courses']:
-                st.write(f"- [{course['title']}]({course['url']}) - {course['duration']}")
-        
-        if 'tutorials' in resources:
-            st.subheader("Tutorials")
-            for tutorial in resources['tutorials']:
-                st.write(f"- [{tutorial['title']}]({tutorial['url']})")
-    
-    # Display Roadmap Milestones
-    st.subheader("🎯 Learning Milestones")
-    for node in roadmap.get('nodes', []):
-        with st.expander(f"📍 {node['data']['title']}", expanded=False):
-            st.write(f"**Description:** {node['data']['description']}")
-            st.write(f"**Duration:** {node['data']['duration']}")
-            st.write(f"**Complexity:** {node['data']['complexity']}")
-            
-            if node['data'].get('exercises'):
-                st.write("\n**Exercises:**")
-                for exercise in node['data']['exercises']:
-                    st.write(f"- {exercise['title']}")
-            
-            if node['data'].get('checkpoints'):
-                st.write("\n**Checkpoints:**")
-                for checkpoint in node['data']['checkpoints']:
-                    st.checkbox(checkpoint, key=f"check_{node['id']}_{checkpoint}")
-    
-    # Reset Button
-    if st.button("Start Over"):
-        st.session_state.current_step = 'goal_selection'
-        st.session_state.user_responses = {}
-        st.session_state.onboarding_questions = None
-        st.session_state.roadmap = None
-        st.rerun()
+        crew = Crew(
+            agents=[self.form_designer],
+            tasks=[question_generation_task],
+            verbose=True,
+            process=Process.sequential
+        )
 
-# Footer
-st.markdown("---")
-st.markdown("Made with ❤️ using CrewAI")
+        result = crew.kickoff()
+        return json.loads(result)
+
+    def generate_roadmap(self, goal_type: str, user_responses: Dict) -> Dict:
+        """Generate complete roadmap based on goal type and user responses."""
+        
+        # Research Task
+        research_task = Task(
+            description=dedent(f"""
+                Analyze the learning requirements for {goal_type} based on user responses:
+                {json.dumps(user_responses, indent=2)}
+                
+                Provide research results as JSON with:
+                - required_skills: string[]
+                - prerequisites: string[]
+                - learning_path_components: string[]
+                - industry_standards: string[]
+                - common_challenges: object[]
+            """),
+            agent=self.researcher
+        )
+
+        # Resource Curation Task
+        resource_task = Task(
+            description=dedent("""
+                Based on the research results, curate learning resources.
+                Include various types of resources like courses, tutorials,
+                documentation, and practice exercises.
+                
+                Format as JSON with categorized resources.
+            """),
+            agent=self.curator
+        )
+
+        # Roadmap Design Task
+        roadmap_task = Task(
+            description=dedent("""
+                Create a comprehensive roadmap using the research and resources.
+                Include clear milestones, timelines, and checkpoints.
+                
+                Format as JSON with nodes (learning modules) and edges (prerequisites).
+            """),
+            agent=self.roadmap_designer
+        )
+
+        crew = Crew(
+            agents=[self.researcher, self.curator, self.roadmap_designer],
+            tasks=[research_task, resource_task, roadmap_task],
+            verbose=True,
+            process=Process.sequential
+        )
+
+        result = crew.kickoff()
+        return json.loads(result)
+
+    def validate_milestone(self, milestone_data: Dict) -> Dict:
+        """Generate validation questions for a milestone."""
+        
+        validation_task = Task(
+            description=dedent(f"""
+                Create validation questions and tasks for the milestone:
+                {json.dumps(milestone_data, indent=2)}
+                
+                Include:
+                1. Knowledge assessment questions
+                2. Practical tasks
+                3. Project requirements
+                4. Skill demonstration criteria
+                
+                Format as JSON with comprehensive validation criteria.
+            """),
+            agent=self.roadmap_designer
+        )
+
+        crew = Crew(
+            agents=[self.roadmap_designer],
+            tasks=[validation_task],
+            verbose=True,
+            process=Process.sequential
+        )
+
+        result = crew.kickoff()
+        return json.loads(result)
+
+# Usage Example
+if __name__ == "__main__":
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    # Initialize crew
+    roadmap_crew = RoadmapCrew(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    roadmap_crew.create_agents()
+    
+    # Test onboarding questions
+    questions = roadmap_crew.get_onboarding_questions("python_programming")
+    print("\nOnboarding Questions:")
+    print(json.dumps(questions, indent=2))
+    
+    # Test roadmap generation
+    user_responses = {
+        "experience_level": "beginner",
+        "weekly_time": 10,
+        "learning_style": ["video", "interactive"],
+        "goal": "Build web applications with Python"
+    }
+    
+    roadmap = roadmap_crew.generate_roadmap("python_programming", user_responses)
+    print("\nRoadmap:")
+    print(json.dumps(roadmap, indent=2))
